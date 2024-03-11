@@ -1,0 +1,9 @@
+boto3==1.26.76
+botocore==1.29.76
+jupyter==1.0.0
+numpy==1.26.4
+pandas==2.0.0
+pydantic==2.5.2
+python-dotenv==1.0.1
+spacy==3.7.4
+tqdm==4.64.1
