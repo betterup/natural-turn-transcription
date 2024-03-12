@@ -16,7 +16,7 @@ This code is written with Python and Jupyter Notebooks.
 3. Install pip if it's not already included  
 `conda install pip`
 
-4. Install packages from the requirements.txt file  
+4. Install packages from the requirements.txt file. Run this command from within this repo's home directory. For example, if you cloned this repo into `~/` on a Mac, do `cd ~/natural-turn-transcription` first before running the below command.  
 `pip install -r requirements.txt`
 
 5. Install the companion Spacy model   
@@ -25,7 +25,7 @@ This code is written with Python and Jupyter Notebooks.
 6. Open `json-to-natural` Jupyter notebook    
 `jupyter notebook json-to-natural.ipynb`  
 
-7. Choose directories to pull JSON data from (`data_dir`) and to save transcripts into (`save_dir`). Set these when you initialize a `TranscriptFormatter()` instance.  
+7. Choose directories to pull JSON data from (`data_dir`) and to save transcripts into (`save_dir`). Set these when you initialize a `TranscriptFormatter()` instance in the code block marked `"Step 3"`.  
     * Note: If you don't make any changes to this repo, and if you are interested in using the CANDOR corpus to test out the NaturalTurn algorithm, then the default settings will work out of the box. You will, however, need to unzip `data/candor_metadata_files.zip` (the resulting folder should remain nested under `data/`), and you will also need to get `aws-2024-candor-raw-api.zip` from OSF, save it in the `data/` directory, and unzip it there.  
 
 8. Now you can run `json-to-natural.ipynb`. It will convert AWS Transcribe output JSON to transcripts formatted using the NaturalTurn algorithm. You have the option to either save each transcript individually, or as a single concatenated CSV file. 
