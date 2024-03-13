@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import List, Optional
 import re
 
-from pydantic import BaseModel, model_validator, validator
+from pydantic import BaseModel, validator
 
 BACKCHANNEL_CUES = [
     "a",

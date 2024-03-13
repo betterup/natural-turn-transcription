@@ -1,17 +1,11 @@
 from enum import Enum
 from functools import lru_cache
-import logging
-from math import ceil
-from pathlib import Path
 import re
 
-import botocore.exceptions
 import numpy as np
 import pandas as pd
 import spacy
 from spacy.matcher import Matcher
-from spacy.util import minibatch
-from tqdm import tqdm
 
 from .transcript_config import (
     Transcript, 
@@ -19,9 +13,6 @@ from .transcript_config import (
     TranscriptConfigVersion, 
     baseline, 
 )
-
-LOGGER = logging.getLogger(__name__)
-
 
 # !! Used in V1 only !!
 # Use these rules to join turns when humanizing turns
