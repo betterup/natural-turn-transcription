@@ -1,5 +1,5 @@
 # natural-turn-transcription
-A companion repo to Cooney & Reece (2025): NaturalTurn: a method to segment speech into psychologically meaningful conversational turns 
+A companion repo to Cooney & Reece (2025): NaturalTurn: a method to segment speech into psychologically meaningful conversational turns. Scientific Reports. 15, 39155.
 https://doi.org/10.1038/s41598-025-24381-1
 
 Codebase for transforming speech-to-text API JSON into naturalistic transcripts.  
