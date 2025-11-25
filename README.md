@@ -1,8 +1,10 @@
 # natural-turn-transcription
-Codebase for transforming speech-to-text API JSON into naturalistic transcripts.  A companion repo to Cooney & Reece, 2024 (under review): _NaturalTurn: A Method to Segment Transcripts into Naturalistic Conversational Turns_.  
+A companion repo to Cooney & Reece (2025): NaturalTurn: a method to segment speech into psychologically meaningful conversational turns 
+https://doi.org/10.1038/s41598-025-24381-1
+
+Codebase for transforming speech-to-text API JSON into naturalistic transcripts.  
 
 Code and data are provided by [BetterUp](https://betterup.com). All code files copyright of BetterUp, Inc., 2024.  
-
 
 This code is written with Python and Jupyter Notebooks.  
 
