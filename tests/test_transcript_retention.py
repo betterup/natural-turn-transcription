@@ -1,4 +1,4 @@
-"""Regression checks for AWS parsing and the baseline/Backbiter export path.
+"""Regression checks for AWS parsing and the baseline/Backbiter/Cliffhanger export path.
 
 Run from the repository root with: python -m unittest discover -s tests -v
 The tokenizer-only checks do not require downloading a spaCy language model.
@@ -7,16 +7,18 @@ The tokenizer-only checks do not require downloading a spaCy language model.
 from collections import Counter
 import ast
 import json
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 import spacy
 
 from transcription import text
-from transcription.transcript_config import Transcript, baseline, backbiter, natural_turn
+from transcription.transcript_config import Transcript, TranscriptConfig, baseline, backbiter, cliffhanger, natural_turn
 
 
 def load_formatter():
@@ -30,7 +32,9 @@ def load_formatter():
     )
     namespace = {
         "json": json,
+        "np": np,
         "pd": pd,
+        "sys": sys,
         "Transcript": Transcript,
         "collapse_transcript_turns": text.collapse_transcript_turns,
     }
@@ -211,14 +215,14 @@ class TranscriptRetentionTests(unittest.TestCase):
         sources = ["".join(cell["source"]) for cell in notebook["cells"]]
         selection_source = next(source for source in sources if source.startswith("turn_model ="))
         concat_source = next(source for source in sources if source.startswith("def concatenate_transcripts_from_local("))
-        for preset, expected_label in [("baseline", "audiophile"), ("backbiter", "backbiter"), ("natural_turn", "natural_turn-1500")]:
+        for preset, expected_label in [("baseline", "audiophile"), ("backbiter", "backbiter"), ("cliffhanger", "cliffhanger"), ("natural_turn", "natural_turn-1500")]:
             with self.subTest(preset=preset):
                 # Exercise the notebook with the same one-line preset selection
                 # a user makes, and no corpus conversations to process.
                 selection = ast.parse(selection_source)
                 selection.body[0].value = ast.Name(id=preset, ctx=ast.Load())
                 ast.fix_missing_locations(selection)
-                namespace = {"baseline": baseline, "backbiter": backbiter, "natural_turn": natural_turn, "conversation_ids": [], "pd": pd}
+                namespace = {"baseline": baseline, "backbiter": backbiter, "cliffhanger": cliffhanger, "natural_turn": natural_turn, "conversation_ids": [], "pd": pd}
                 exec(compile(selection, str(notebook_path), "exec"), namespace)
                 self.assertEqual(namespace["output_label"], expected_label)
                 utterance_frame(["Hello there."]).to_csv(self.root / "output" / f"test_{expected_label}.csv")
@@ -230,6 +234,119 @@ class TranscriptRetentionTests(unittest.TestCase):
                 )
                 self.assertEqual(combined.utterance.tolist(), ["Hello there."])
                 self.assertEqual(combined.conversation_id.tolist(), ["test"])
+
+    def interrupted_sentence(self):
+        """Left speaker's second sentence spans the right speaker's interjection."""
+        return self.parse(
+            [word("Hello", 0.0, 0.3), word("there", 0.4, 0.6), punctuation("."),
+             word("So", 1.0, 1.2), word("I", 1.3, 1.4), word("was", 1.5, 1.7),
+             word("thinking", 3.0, 3.4), punctuation(".")],
+            [word("Yeah", 2.0, 2.3), punctuation(".")],
+        )
+
+    def test_token_df_keeps_every_token_with_inherited_punctuation_times(self):
+        self.parse(
+            [punctuation(","), word("Hello", 0.5, 0.8), punctuation("."), word("Bye", 2.0, 2.2)],
+            [word("Hi", 1.0, 1.2, "0.95"), punctuation("!")],
+        )
+        tokens = self.formatter.json_to_token_df()
+        self.assertEqual(list(tokens.columns), ["speaker", "start", "stop", "utterance", "confidence", "type"])
+        self.assertEqual(tokens.utterance.tolist(), [",", "Hello", ".", "Hi", "!", "Bye"])
+        self.assertEqual(tokens.speaker.tolist(), ["A", "A", "A", "B", "B", "A"])
+        # leading punctuation has no preceding word, so it gets 0 like the baseline parser
+        self.assertEqual(tokens.start.tolist(), [0.0, 0.5, 0.5, 1.0, 1.0, 2.0])
+        self.assertEqual(tokens.stop.tolist(), [0.0, 0.8, 0.8, 1.2, 1.2, 2.2])
+        self.assertEqual(tokens.type.tolist().count("punctuation"), 3)
+
+    def test_cliffhanger_keeps_interrupted_sentences_whole(self):
+        parsed = self.interrupted_sentence()
+        frame = self.formatter.json_to_baseline_df(parsed)
+        self.assertEqual(frame.utterance.tolist(), ["Hello there. So I was", "Yeah.", "thinking."])
+        tokens = self.formatter.json_to_token_df()
+        transcript = self.formatter.baseline_to_natural_turn(frame, cliffhanger, token_df=tokens)
+        result = transcript.transcript
+        self.assertEqual(result.utterance.tolist(), ["Hello there. So I was thinking.", "Yeah."])
+        self.assertEqual(result.speaker.tolist(), ["A", "B"])
+        self.assertEqual(result.start.tolist(), [0.0, 2.0])
+        self.assertEqual(result.stop.tolist(), [3.4, 2.3])
+        self.assertTrue(result.overlap.iloc[1])
+        self.assertIsNone(transcript.edit_history)
+        self.assertEqual(all_output_words(result), all_output_words(frame))
+
+    def test_cliffhanger_saves_utterance_level_baseline_not_tokens(self):
+        frame = self.formatter.json_to_baseline_df(self.interrupted_sentence())
+        transcript = self.formatter.baseline_to_natural_turn(frame, cliffhanger, token_df=self.formatter.json_to_token_df())
+        self.formatter.save_transcripts_to_local(transcript, "cliffhanger")
+        saved_baseline = pd.read_csv(self.root / "output" / "test_baseline.csv")
+        self.assertEqual(saved_baseline.utterance.tolist(), ["Hello there. So I was", "Yeah.", "thinking."])
+        saved = pd.read_csv(self.root / "output" / "test_cliffhanger.csv")
+        self.assertEqual(saved.utterance.tolist(), ["Hello there. So I was thinking.", "Yeah."])
+        self.assertFalse((self.root / "output" / "test_cliffhanger_edit-history.csv").exists())
+
+    def test_cliffhanger_retains_an_unterminated_final_fragment(self):
+        # the right speaker's last words have no terminal punctuation; they join that speaker's preceding sentence
+        self.parse(
+            [word("Well", 0.0, 0.3), word("I", 0.4, 0.5), word("mean", 2.0, 2.3), punctuation(".")],
+            [word("Sure", 1.0, 1.2), punctuation("."), word("Go", 3.0, 3.2), word("on", 3.3, 3.5)],
+        )
+        frame = self.formatter.json_to_baseline_df(self.formatter.construct_conversation_transcript())
+        result = self.formatter.baseline_to_natural_turn(frame, cliffhanger, token_df=self.formatter.json_to_token_df()).transcript
+        self.assertEqual(result.utterance.tolist(), ["Well I mean.", "Sure. Go on"])
+        self.assertEqual(all_output_words(result), all_output_words(frame))
+
+    def test_collapse_on_missing_punc_joins_a_speakers_turns_from_the_baseline(self):
+        frame = self.formatter.json_to_baseline_df(self.interrupted_sentence())
+        joiner = TranscriptConfig(collapse_on_missing_punc=True)
+        result = self.formatter.baseline_to_natural_turn(frame, joiner).transcript
+        self.assertEqual(result.utterance.tolist(), ["Hello there. So I was thinking.", "Yeah."])
+        self.assertEqual(result.stop.tolist(), [3.4, 2.3])
+        self.assertEqual(all_output_words(result), all_output_words(frame))
+
+    def test_concatenation_keeps_utterances_that_look_like_missing_values(self):
+        notebook_path = Path(__file__).resolve().parents[1] / "json-to-natural.ipynb"
+        sources = ["".join(cell["source"]) for cell in json.loads(notebook_path.read_text())["cells"]]
+        concat_source = next(source for source in sources if source.startswith("def concatenate_transcripts_from_local("))
+        namespace = {"pd": pd}
+        exec(compile(concat_source, str(notebook_path), "exec"), namespace)
+        frame = utterance_frame(["None", "of that.", "NA", "null"])
+        frame["backchannel"] = [None, "Yeah.", None, None]
+        frame.to_csv(self.root / "output" / "test_audiophile.csv")
+        combined = namespace["concatenate_transcripts_from_local"](
+            ["test"], "audiophile", str(self.root / "output" / "{conversation_id}_{output_label}.csv")
+        )
+        self.assertEqual(combined.utterance.tolist(), ["None", "of that.", "NA", "null"])
+        self.assertEqual(combined.backchannel.isna().tolist(), [True, False, True, True])
+
+    def test_saver_writes_long_confidence_arrays_in_full(self):
+        frame = utterance_frame(["Hello there."])
+        long_confidence = np.round(np.linspace(0.5, 0.999, 1500), 3)
+        frame["confidence"] = [long_confidence]
+        transcript = Transcript(frame, natural_turn)
+        transcript.set_transcript(frame)
+        transcript.set_edit_history(frame.rename(columns={"confidence": "confidence_pre_edit"}))
+        self.formatter.save_transcripts_to_local(transcript, "long")
+        for name, column in [("test_long.csv", "confidence"), ("test_long_edit-history.csv", "confidence_pre_edit")]:
+            with self.subTest(file=name):
+                cell = pd.read_csv(self.root / "output" / name)[column].iloc[0]
+                self.assertNotIn("...", cell)
+                self.assertEqual(len(cell.strip("[]").split()), 1500)
+
+    def test_cliffhanger_without_tokens_raises(self):
+        frame = utterance_frame(["Hello there."])
+        with self.assertRaisesRegex(ValueError, "token-level data"):
+            text.collapse_transcript_turns(Transcript(frame, cliffhanger))
+
+    def test_sentence_presets_require_terminal_punctuation_cues(self):
+        for flag in ("collapse_on_missing_punc", "preserve_intraturn_sentences"):
+            with self.subTest(flag=flag):
+                with self.assertRaisesRegex(ValueError, "terminal_punc_cues"):
+                    TranscriptConfig(**{flag: True, "terminal_punc_cues": []})
+
+    def test_existing_presets_are_unchanged_by_the_new_fields(self):
+        for config in (baseline, backbiter, natural_turn):
+            with self.subTest(config=config.version):
+                self.assertFalse(config.collapse_on_missing_punc)
+                self.assertFalse(config.preserve_intraturn_sentences)
 
 
 if __name__ == "__main__":
