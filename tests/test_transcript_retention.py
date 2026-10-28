@@ -298,6 +298,21 @@ class TranscriptRetentionTests(unittest.TestCase):
         self.assertEqual(result.stop.tolist(), [3.4, 2.3])
         self.assertEqual(all_output_words(result), all_output_words(frame))
 
+    def test_concatenation_keeps_utterances_that_look_like_missing_values(self):
+        notebook_path = Path(__file__).resolve().parents[1] / "json-to-natural.ipynb"
+        sources = ["".join(cell["source"]) for cell in json.loads(notebook_path.read_text())["cells"]]
+        concat_source = next(source for source in sources if source.startswith("def concatenate_transcripts_from_local("))
+        namespace = {"pd": pd}
+        exec(compile(concat_source, str(notebook_path), "exec"), namespace)
+        frame = utterance_frame(["None", "of that.", "NA", "null"])
+        frame["backchannel"] = [None, "Yeah.", None, None]
+        frame.to_csv(self.root / "output" / "test_audiophile.csv")
+        combined = namespace["concatenate_transcripts_from_local"](
+            ["test"], "audiophile", str(self.root / "output" / "{conversation_id}_{output_label}.csv")
+        )
+        self.assertEqual(combined.utterance.tolist(), ["None", "of that.", "NA", "null"])
+        self.assertEqual(combined.backchannel.isna().tolist(), [True, False, True, True])
+
     def test_cliffhanger_without_tokens_raises(self):
         frame = utterance_frame(["Hello there."])
         with self.assertRaisesRegex(ValueError, "token-level data"):
