@@ -102,6 +102,7 @@ class TranscriptConfig(BaseModel):
     'mask_underconfident_tokens': (bool) Replace unexcluded underconfident tokens with <<unknown>>.
     'include_token_confidence': (bool) include token-level confidence 
     'token_confidence_threshold': (float) minimum confidence (probability) for qualifying a token as "reliable", default 1.0
+    'collapse_short_turns': (bool) V1 only: collapse turns below the word/duration thresholds
     'collapse_short_pauses': (bool) collapse pauses with less than N seconds between them
     'backchannel_word_max': (int) used in 'pivot_backchannels'. The maximum number of words in an utterance to be considered a backchannel
     'backchannel_second_max': (float) used in 'pivot_backchannels'. The maximum length of an utterance (in seconds) to be considered a backchannel
@@ -134,6 +135,7 @@ class TranscriptConfig(BaseModel):
     combine_secondary_turns: bool = False
     pivot_secondary_turns: bool = False
     
+    collapse_short_turns: bool = False
     collapse_short_pauses: bool = False
     max_pause: Optional[float] = 0.0
     

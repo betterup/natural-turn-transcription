@@ -31,6 +31,10 @@ This code is written with Python and Jupyter Notebooks.
     * Note: If you don't make any changes to this repo, and if you are interested in using the CANDOR corpus to test out the NaturalTurn algorithm, then the default settings will work out of the box. You will, however, need to unzip `data/candor_metadata_files.zip` (the resulting folder should remain nested under `data/`). You will also need  [`aws-2024-candor-raw-api.zip`](https://osf.io/nv2ar). Save and unzip this .zip file in the repo's `data/` directory. The code provided requires both the .zip file and the unzipped directory to be in `data/`.
 
 8. Now you can run `json-to-natural.ipynb`. It will convert AWS Transcribe output JSON to transcripts formatted using the NaturalTurn algorithm. You have the option to either save each transcript individually, or as a single concatenated CSV file. 
+
+In Step 3, set `turn_model` to `baseline` (the Audiophile transcript), `backbiter`, or `natural_turn`. Their output labels are `audiophile`, `backbiter`, and `natural_turn-1500`, respectively, for individual files and the optional concatenated CSV. The raw baseline is also saved separately as `<conversation_id>_baseline.csv`. The parser retains the final speaker run, including single-speaker recordings. Backbiter keeps an opening cue in the main transcript because there is no preceding turn to receive it; later backchannels remain in the backchannel columns. Audiophile and Backbiter do not generate edit-history files.
+
+Run the regression checks with `python -m unittest discover -s tests -v`. These checks use spaCy's English tokenizer and do not require the downloaded language model or the CANDOR data.
       
 
 **Notes**

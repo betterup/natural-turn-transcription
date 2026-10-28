@@ -170,12 +170,16 @@ def _unstack_backchannels(
             (df.delta_temp > 0) & (df.delta_temp <= config.backchannel_pause_max)
         )
 
-    # by definition, there should not be two consecutive backchannels
-    # therefore, if the previous row is a backchannel, current row cannot also be a backchannel
-    df["is_backchannel"] = df.is_backchannel & ~df.is_backchannel.shift(1).fillna(False)
+    # Preserve the historical rule: a candidate following another candidate stays
+    # in the main transcript. Keep the shifted values boolean on all pandas versions.
+    candidates = df.is_backchannel.astype(bool)
+    df["is_backchannel"] = candidates & ~candidates.shift(1, fill_value=False)
+    # An opening backchannel has no preceding turn to receive its text, so retain it.
+    if not df.empty:
+        df.iloc[0, df.columns.get_loc("is_backchannel")] = False
 
     # indicator that the next turn is a backchannel during this turn
-    next_turn_is_backchannel = df.shift(-1).is_backchannel.fillna(False)
+    next_turn_is_backchannel = df.is_backchannel.shift(-1, fill_value=False)
 
     df["backchannel"] = np.where(next_turn_is_backchannel, df.utterance.shift(-1), np.nan)
     df["backchannel_count"] = np.where(next_turn_is_backchannel, 1, 0)
