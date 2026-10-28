@@ -1,0 +1,21 @@
+json-to-natural.ipynb
+  s_81149d7600d479::t_bb2f3293098675 391-392
+tests/test_transcript_retention.py
+  s_81149d7600d479::t_966e9088951a5b 301-315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dd4ddcbd2105de1a76f01f19cb8a03d07a3be83",
+  "prompts": {},
+  "sessions": {
+    "s_81149d7600d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87db8c9c-997f-4490-a21a-67ab1d5bce2c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andrew Reece <andrew.reece@betterup.co>"
+    }
+  }
+}
