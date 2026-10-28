@@ -6,17 +6,16 @@ import re
 from pydantic import BaseModel, validator
 
 BACKCHANNEL_CUES = [
-    "a",
     "ah",
     "alright",
     "awesome",
     "cool",
     "dope",
-    "e",
     "exactly",
     "god",
     "gotcha",
     "huh",
+    "hm",
     "hmm",
     "mhm",
     "mm hmm",
@@ -24,6 +23,7 @@ BACKCHANNEL_CUES = [
     "mmm",
     "nice",
     "oh",
+    "ok",
     "okay",
     "really",
     "right",
