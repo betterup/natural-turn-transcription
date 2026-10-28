@@ -7,11 +7,13 @@ The tokenizer-only checks do not require downloading a spaCy language model.
 from collections import Counter
 import ast
 import json
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 import spacy
 
@@ -30,7 +32,9 @@ def load_formatter():
     )
     namespace = {
         "json": json,
+        "np": np,
         "pd": pd,
+        "sys": sys,
         "Transcript": Transcript,
         "collapse_transcript_turns": text.collapse_transcript_turns,
     }
@@ -312,6 +316,20 @@ class TranscriptRetentionTests(unittest.TestCase):
         )
         self.assertEqual(combined.utterance.tolist(), ["None", "of that.", "NA", "null"])
         self.assertEqual(combined.backchannel.isna().tolist(), [True, False, True, True])
+
+    def test_saver_writes_long_confidence_arrays_in_full(self):
+        frame = utterance_frame(["Hello there."])
+        long_confidence = np.round(np.linspace(0.5, 0.999, 1500), 3)
+        frame["confidence"] = [long_confidence]
+        transcript = Transcript(frame, natural_turn)
+        transcript.set_transcript(frame)
+        transcript.set_edit_history(frame.rename(columns={"confidence": "confidence_pre_edit"}))
+        self.formatter.save_transcripts_to_local(transcript, "long")
+        for name, column in [("test_long.csv", "confidence"), ("test_long_edit-history.csv", "confidence_pre_edit")]:
+            with self.subTest(file=name):
+                cell = pd.read_csv(self.root / "output" / name)[column].iloc[0]
+                self.assertNotIn("...", cell)
+                self.assertEqual(len(cell.strip("[]").split()), 1500)
 
     def test_cliffhanger_without_tokens_raises(self):
         frame = utterance_frame(["Hello there."])
