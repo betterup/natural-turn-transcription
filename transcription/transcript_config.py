@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import List, Optional
 import re
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, model_validator, validator
 
 BACKCHANNEL_CUES = [
     "ah",
@@ -57,6 +57,12 @@ NOT_BACKCHANNEL_CUES = [
     "you're",
 ]
 
+TERMINAL_PUNC_CUES = [
+    ".",
+    "?",
+    "!",
+]
+
 BANNED_TOKENS = []
 
 SUSPICIOUS_TOKENS = []
@@ -65,16 +71,18 @@ class TranscriptConfigVersion(Enum):
     """Transcript assembly in V2/natural_turn is substantially different than in V1 models. 
        Rather than try and merge both into the same logic, this flag allows for branching
        into the appropriate logic in text.py."""
-    V1 = 1 # baseline
+    V1 = 1 # baseline, backbiter, cliffhanger
     V2 = 2 # natural_turn 
     
     
 class Transcript:    
     """Transcript contains original transcript (baseline), TranscriptConfig, 
        excluded turns, and edit history (in the case tokens are removed or masked from utterances."""
-    def __init__(self, df, config):
+    def __init__(self, df, config, tokens=None):
         self.baseline = df
         self.config = config
+        # token-level data frame, required when config.preserve_intraturn_sentences is True
+        self.tokens = tokens
         self.edit_history = None
     
     def set_transcript(self, transcript_df):
@@ -103,6 +111,9 @@ class TranscriptConfig(BaseModel):
     'include_token_confidence': (bool) include token-level confidence 
     'token_confidence_threshold': (float) minimum confidence (probability) for qualifying a token as "reliable", default 1.0
     'collapse_short_turns': (bool) V1 only: collapse turns below the word/duration thresholds
+    'collapse_on_missing_punc': (bool) V1 only: join a speaker's consecutive turns until one ends in terminal punctuation
+    'terminal_punc_cues': (list) used in 'collapse_on_missing_punc' and 'preserve_intraturn_sentences'. Punctuation marks that end a sentence
+    'preserve_intraturn_sentences': (bool) V1 only: build turns from token-level sentences instead of the baseline; requires Transcript.tokens
     'collapse_short_pauses': (bool) collapse pauses with less than N seconds between them
     'backchannel_word_max': (int) used in 'pivot_backchannels'. The maximum number of words in an utterance to be considered a backchannel
     'backchannel_second_max': (float) used in 'pivot_backchannels'. The maximum length of an utterance (in seconds) to be considered a backchannel
@@ -136,6 +147,10 @@ class TranscriptConfig(BaseModel):
     pivot_secondary_turns: bool = False
     
     collapse_short_turns: bool = False
+    collapse_on_missing_punc: bool = False
+    terminal_punc_cues: Optional[List[str]] = TERMINAL_PUNC_CUES
+    preserve_intraturn_sentences: bool = False
+
     collapse_short_pauses: bool = False
     max_pause: Optional[float] = 0.0
     
@@ -186,6 +201,12 @@ class TranscriptConfig(BaseModel):
                 f"Thresholds must be zero or greater; {values['backchannel_second_max']}, {values['backchannel_word_max']}, and {values['backchannel_pause_max']} were passed."
             )
         return values
+
+    @model_validator(mode="after")
+    def check_terminal_punc_input(self):
+        if (self.collapse_on_missing_punc or self.preserve_intraturn_sentences) and not self.terminal_punc_cues:
+            raise ValueError("Sentence-based turn assembly requires terminal_punc_cues.")
+        return self
 
     @validator("backchannel_proportion")
     def check_proportion(cls, v):
@@ -301,4 +322,40 @@ backbiter = TranscriptConfig(
     collapse_short_pauses=False,
     max_pause=1.5,
 
+)
+
+# preset for the sentence-based turn model nicknamed "cliffhanger" (see Reece et al., 2023 for details).
+# Turns are built from token-level sentences, so a sentence that spans the other speaker's
+# interjection stays whole. Requires Transcript.tokens.
+cliffhanger = TranscriptConfig(
+    version = TranscriptConfigVersion.V1,
+
+    pivot_backchannels=False,
+    backchannel_word_max=0,
+    backchannel_second_max=0.0,
+    backchannel_pause_max=0.0,
+    backchannel_proportion=0.0,
+    backchannel_cues=[],
+    not_backchannel_cues=[],
+    collapse_on_missing_punc=True,
+    terminal_punc_cues=TERMINAL_PUNC_CUES,
+    preserve_intraturn_sentences=True,
+    collapse_short_turns=False,
+    short_turn_word_max=0,
+    short_turn_second_max=0.0,
+    # default V2 settings, required for TranscriptConfig but not used to define cliffhanger
+    token_confidence_threshold=token_conf,
+    include_token_confidence=True,
+    exclude_underconfident_utterances=False,
+    remove_banned_tokens=False,
+    remove_suspicious_tokens=False,
+    banned_tokens=[],
+    suspicious_tokens=[],
+    flag_underconfident_tokens=False,
+    mask_underconfident_tokens=False,
+    label_turns=False,
+    combine_secondary_turns=False,
+    pivot_secondary_turns=False,
+    collapse_short_pauses=False,
+    max_pause=1.5,
 )

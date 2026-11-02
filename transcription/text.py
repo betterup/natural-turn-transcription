@@ -1015,6 +1015,16 @@ def collapse_transcript_turns(
     # V1 logic
     ##
     if transcript.config.version == TranscriptConfigVersion.V1:
+        # sentence-based presets (cliffhanger) start from tokens rather than the baseline
+        if transcript.config.preserve_intraturn_sentences:
+            if transcript.tokens is None:
+                raise ValueError(
+                    "preserve_intraturn_sentences requires token-level data. "
+                    "Pass tokens to Transcript, e.g. from TranscriptFormatter.json_to_token_df()."
+                )
+            df = _create_sentences_from_tokens(transcript.tokens, config=transcript.config)
+            df = _v1_join_contiguous_utterances(df)
+
         # pivot out backchannels
         if transcript.config.pivot_backchannels:
             df = _unstack_backchannels(df, config=transcript.config)
@@ -1026,6 +1036,16 @@ def collapse_transcript_turns(
                 df, 
                 new_turn_func=_collapse_short_turns, 
                 join_func=_v1_join_contiguous_utterances, 
+                config=transcript.config
+            )
+            df = _v1_join_contiguous_utterances(df)
+
+        # join a speaker's consecutive turns until one ends in terminal punctuation
+        if transcript.config.collapse_on_missing_punc:
+            df = _humanize_turns_per_speaker(
+                df,
+                new_turn_func=_collapse_on_missing_punc,
+                join_func=_v1_join_contiguous_utterances,
                 config=transcript.config
             )
             df = _v1_join_contiguous_utterances(df)
