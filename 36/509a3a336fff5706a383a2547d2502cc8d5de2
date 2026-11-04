@@ -1,0 +1,19 @@
+README.md
+  s_81149d7600d479::t_238494033f59c5 31-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36509a3a336fff5706a383a2547d2502cc8d5de2",
+  "prompts": {},
+  "sessions": {
+    "s_81149d7600d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87db8c9c-997f-4490-a21a-67ab1d5bce2c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andrew Reece <andrew.reece@betterup.co>"
+    }
+  }
+}
