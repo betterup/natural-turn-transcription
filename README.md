@@ -28,7 +28,13 @@ This code is written with Python and Jupyter Notebooks.
 `jupyter notebook json-to-natural.ipynb`  
 
 7. Choose directories to pull JSON data from (`data_dir`) and to save transcripts into (`save_dir`). Set these when you initialize a `TranscriptFormatter()` instance in the code block marked `"Step 3"`.  
-    * Note: If you don't make any changes to this repo, and if you are interested in using the CANDOR corpus to test out the NaturalTurn algorithm, then the default settings will work out of the box. You will, however, need to unzip `data/candor_metadata_files.zip` (the resulting folder should remain nested under `data/`). You will also need  [`aws-2024-candor-raw-api.zip`](https://osf.io/nv2ar). Save and unzip this .zip file in the repo's `data/` directory. The code provided requires both the .zip file and the unzipped directory to be in `data/`.
+    * Note: If you don't make any changes to this repo, and if you are interested in using the CANDOR corpus to test out the NaturalTurn algorithm, then the default settings will work out of the box. You will, however, need to unzip `data/candor_metadata_files.zip` (the resulting folder should remain nested under `data/`). You will also need the 2024 AWS Transcribe output, `transcripts/aws_2024_raw/aws_2024_transcribe_output.zip` in the gated [`betterup/candor-tabular`](https://huggingface.co/datasets/betterup/candor-tabular) dataset on Hugging Face. Once your access request is approved, run these from the repo's home directory:
+
+        hf download betterup/candor-tabular transcripts/aws_2024_raw/aws_2024_transcribe_output.zip --repo-type dataset --local-dir hf-candor
+        mv hf-candor/transcripts/aws_2024_raw/aws_2024_transcribe_output.zip data/aws-2024-candor-raw-api.zip
+        unzip -q data/aws-2024-candor-raw-api.zip -d data/aws-2024-candor-raw-api
+
+      The code provided requires both the .zip file and the unzipped directory to be in `data/`.
 
 8. Now you can run `json-to-natural.ipynb`. It will convert AWS Transcribe output JSON to transcripts formatted using the NaturalTurn algorithm. You have the option to either save each transcript individually, or as a single concatenated CSV file. 
 
